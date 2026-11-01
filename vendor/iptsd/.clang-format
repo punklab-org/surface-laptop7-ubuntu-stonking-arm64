@@ -1,0 +1,103 @@
+##
+## Roughly follows the Linux Kernel coding guidelines, interpreting them for C++
+##
+## https://www.kernel.org/doc/html/latest/process/coding-style.html
+##
+
+{
+	"Language": "Cpp",
+	"Standard": "c++17",
+
+	# The LLVM style comes pretty close to what we want by default
+	"BasedOnStyle": "LLVM",
+
+	# Sync this with .editorconfig
+	"UseTab": "AlignWithSpaces",
+	"ColumnLimit": 100,
+
+	# Assume that one TAB character is 8 spaces wide
+	# This is required for calculating whether a line is wider than the limit defined above
+	"TabWidth": 8,
+
+	# Setup indentation using one TAB character
+	# This needs to be synced with the value of TabWidth
+	"IndentWidth": 8,
+	"AccessModifierOffset": -8,
+	"ContinuationIndentWidth": 8,
+	"ConstructorInitializerIndentWidth": 8,
+
+	# Put braces on the same line for every statement except for functions
+	"BreakBeforeBraces": "WebKit",
+
+	# Disable bin-packing.
+	# This means that the code will either be aligned horizontally or vertically, but not both.
+	"BinPackArguments": false,
+	"BinPackParameters": false,
+	"PackConstructorInitializers": "CurrentLine",
+
+	# Disable rules that might override the ones above to keep things consistent
+	"AllowAllArgumentsOnNextLine": false,
+	"AllowAllParametersOfDeclarationOnNextLine": false,
+
+	# Foo {bar} instead of Foo{ bar }
+	"SpaceBeforeCpp11BracedList": true,
+	"SpacesInContainerLiterals": false,
+
+	"KeepEmptyLinesAtTheStartOfBlocks": false,
+
+	# Make goto labels stand out
+	"IndentGotoLabels": false,
+
+	# template <class T>
+	# class Foo {};
+	#
+	# instead of
+	#
+	# template <class T> class Foo {};
+	"AlwaysBreakTemplateDeclarations": true,
+
+	# void foo()
+	# {
+	# }
+	#
+	# instead of
+	#
+	# void foo() {}
+	"AllowShortFunctionsOnASingleLine": "None",
+
+	# Automatically format comments, includes and using statements
+	"IncludeBlocks": "Regroup",
+	"ReflowComments": true,
+	"SortIncludes": "CaseSensitive",
+	"SortUsingDeclarations": true,
+
+	"IncludeCategories": [
+		{
+			# Includes relative to the file use #include "..."
+			"Regex": "^\".+\"$",
+			"Priority": 1,
+		},
+		{
+			# All directories under src/
+			"Regex": "^<(common|contacts|core|hid|ipts)/.+>$",
+			"Priority": 2,
+		},
+		{
+			# Dependencies
+			"Regex": "^<(gsl|Eigen|spdlog|fmt|cairomm|CLI)/.+>$",
+			"Priority": 3,
+		},
+		{
+			# Dependencies with only a single header
+			"Regex": "^<(INIReader.h|SDL.h)>$",
+			"Priority": 3,
+		},
+		{
+			# Linux userspace API
+			"Regex": "^<(linux|sys)/.+>$",
+			"Priority": 4,
+		},
+
+		# The C / C++ standard library is automatically assigned priority 5
+	],
+}

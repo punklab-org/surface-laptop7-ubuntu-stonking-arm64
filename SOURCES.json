@@ -1,0 +1,28 @@
+{
+  "date": "2026-11-01",
+  "kernel_release": "7.3.0-31-qcom-x1e",
+  "kernel_source_version": "7.3.0-31.31",
+  "hardware": "Surface Laptop 7 13.8 inch / X1P64100 / microsoft,romulus13",
+  "x1e_nixos": {
+    "url": "https://github.com/scuggo/x1e-nixos",
+    "session_commit": "ca7db709ee29ecdd3c00fec679febdfb2ebfaa32",
+    "source": "archive provided in session"
+  },
+  "iptsd": {
+    "url": "https://github.com/alex-lentz/iptsd",
+    "bundle_commit": "3663e96e758145801c3cb1ce7c72f362d0d4a5f5",
+    "note": "New source snapshot; exact historical tested revision was not recorded"
+  },
+  "camera": {
+    "url": "https://github.com/bryce-hoehn/linux-surface-laptop-7",
+    "source": "main snapshot fetched 2026-11-01",
+    "patch_sha256": "2a96617c3c236b0054e2988b48f4e293692eae56d65e9368bf9dcf7ed27c2058"
+  },
+  "encoder": {
+    "url": "https://github.com/qca/qca-swiss-army-knife",
+    "sha256": "fdcc8dc9628d67e500d496a1de22e82e136ddeaec32669ea1b3add93f2980652"
+  },
+  "validation": "Shell and embedded Python syntax; patch application checked. Not built or run end to end on ARM64 here.",
+  "package_language": "en",
+  "translation_note": "English documentation, procedural comments, messages and display labels; upstream sources and patches retain original identifiers and notices."
+}

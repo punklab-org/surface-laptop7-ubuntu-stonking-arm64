@@ -1,0 +1,12 @@
+{
+  "language": "en",
+  "shell_scripts": 15,
+  "python_heredocs_in_scripts": 4,
+  "guide_command_blocks": 46,
+  "local_markdown_links": 14,
+  "patch_dry_runs": [
+    "spi-geni-qcom-ubuntu-7.3.0-31.patch",
+    "gpi.patch"
+  ],
+  "runtime_installation_tested": false
+}
