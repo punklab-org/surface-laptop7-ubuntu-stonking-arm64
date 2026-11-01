@@ -721,6 +721,159 @@ sudo journalctl -b -k --no-pager | grep -Ei 'failed to boot CPU|CPU[0-9]+: faile
 Confirmed result: CPU(s): 10, online: 0-9; the last command prints no errors. This does not increase performance: all ten physical cores provided by the processor were already active.
 ## 15. Audio, microphone and suspend: successful checks
 
+## Bluetooth: recovering and configuring the original address
+
+If `bluetoothctl` reports `No default controller available`, check whether the controller requires a public Bluetooth address:
+
+```bash
+sudo btmgmt config
+```
+
+This procedure applies when the output includes:
+
+```text
+Unconfigured controller
+supported options: public-address
+missing options: public-address
+```
+
+### 1. Retrieve the original address from Windows
+
+1. Boot Windows.
+2. Open **Device Manager → Bluetooth**.
+3. Open the properties of the **Qualcomm Bluetooth adapter**, not a paired mouse, speaker or headset.
+4. On the **Advanced** tab, look for **Bluetooth Radio Information → Address**.
+5. If unavailable, check the **Details** tab for a Bluetooth device address property.
+
+Record the original address. For example:
+
+```text
+AA:BB:CC:DD:EE:FF
+```
+
+**This is an example only. Do not use it unchanged. Do not substitute the Wi-Fi MAC address.**
+
+### 2. Test the address in Ubuntu
+
+Boot Ubuntu and replace the example below with your adapter’s original address:
+
+```bash
+sudo btmgmt --index 0 public-addr AA:BB:CC:DD:EE:FF
+```
+
+Check the controller:
+
+```bash
+bluetoothctl list
+bluetoothctl show
+bluetoothctl power on
+```
+
+Before making the change persistent, pair a Bluetooth device and verify that it works.
+
+### 3. Make the address persistent
+
+The following commands assume that the guide’s working 10-core Device Tree already exists.
+
+Create a separate copy:
+
+```bash
+mkdir -p ~/bluetooth-surface
+cd ~/bluetooth-surface
+
+cp /boot/surface-all-peripherals-10core-v2.dtb \
+surface-all-peripherals-bluetooth.dtb
+```
+
+The `local-bd-address` property stores the six address bytes in reverse order.
+
+For the example address:
+
+```text
+Normal notation: AA:BB:CC:DD:EE:FF
+Device Tree:     ff ee dd cc bb aa
+```
+
+Replace those example bytes with your own address, reversed:
+
+```bash
+fdtput -t bx surface-all-peripherals-bluetooth.dtb \
+/soc@0/geniqup@ac0000/serial@a98000/bluetooth \
+local-bd-address ff ee dd cc bb aa
+```
+
+Verify the stored bytes:
+
+```bash
+fdtget -t bx surface-all-peripherals-bluetooth.dtb \
+/soc@0/geniqup@ac0000/serial@a98000/bluetooth \
+local-bd-address
+```
+
+Install the new Device Tree:
+
+```bash
+sudo install -m 644 surface-all-peripherals-bluetooth.dtb \
+/boot/surface-all-peripherals-bluetooth.dtb
+```
+
+Create an additional GRUB entry while preserving the previous working entry:
+
+```bash
+sudo python3 <<'PY'
+from pathlib import Path
+import re
+
+s = Path("/etc/grub.d/44_surface_10core_test").read_text()
+
+s, count = re.subn(
+    r"menuentry '[^']*'",
+    "menuentry 'Ubuntu 7.3.0-31-qcom-x1e - all peripherals'",
+    s,
+)
+if count != 1:
+    raise SystemExit("Unexpected GRUB entry: stopped.")
+
+changes = {
+    "--id surface-all-peripherals-10core":
+        "--id surface-all-peripherals-bluetooth",
+    "/boot/surface-all-peripherals-10core-v2.dtb":
+        "/boot/surface-all-peripherals-bluetooth.dtb",
+}
+for old, new in changes.items():
+    if s.count(old) != 1:
+        raise SystemExit("Unexpected configuration: " + old)
+    s = s.replace(old, new, 1)
+
+if "stubble.dtb_override=false" not in s:
+    raise SystemExit("Missing Stubble parameter: stopped.")
+
+p = Path("/etc/grub.d/45_surface_bluetooth_test")
+p.write_text(s)
+p.chmod(0o755)
+PY
+
+sudo update-grub
+sudo grub-script-check /boot/grub/grub.cfg
+```
+
+### 4. Verify after reboot
+
+Select:
+
+**Ubuntu 7.3.0-31-qcom-x1e - all peripherals**
+
+Without running `btmgmt public-addr` again, check:
+
+```bash
+bluetoothctl list
+bluetoothctl show
+```
+
+The controller should appear with its original address. Reconnect the paired device and test it again.
+
+Keep the previous GRUB entry as a fallback. Do not publish your machine-specific Device Tree or original Bluetooth address in this repository.
+
 
 The speakers and internal microphone were confirmed working. On a later boot the speakers were silent even though Firefox sent audio to the correct sink. After restarting user services and setting mute/volume, audio returned and remained working after reboot. It was not established which step was decisive. The initial microphone report did not require a patch: a targeted recording subsequently worked. The correct source was Internal microphones, not Headset microphone. Do not enable all DMIC switches indiscriminately; the path in use was VA DMIC0/DMIC1.
 
@@ -761,6 +914,7 @@ systemctl --failed --no-pager
 
 
 GeoClue is not required for these peripherals. Location services were left disabled at the user’s request; do not restart GeoClue as a general fix.
+
 ## 16. Battery: retained settings and limitations
 
 
