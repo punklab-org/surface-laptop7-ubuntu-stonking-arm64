@@ -46,7 +46,6 @@ guarantee of compatibility with other hardware or kernel versions.
 - [Validation report and limitations](docs/VALIDATION.md)
 - [Source provenance and third-party licences](THIRD_PARTY.md)
 - [Source revisions and hashes](SOURCES.json)
-- [GitHub upload instructions](UPLOAD_TO_GITHUB.md)
 
 ## Requirements
 
