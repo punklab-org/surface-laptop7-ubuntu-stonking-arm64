@@ -19,7 +19,7 @@ The underlying fixes were tested on one Surface during 31 October–1 November 2
 | Snapdragon X Plus CPU | ✅ Working | All 10 cores online |
 | Adreno X1-85 GPU | ✅ Working | OpenGL hardware acceleration and Vulkan |
 | Wi-Fi | ✅ Working | Connection and web browsing tested |
-| Bluetooth | ✅ Working | External speaker connected; controller available after reboot |
+| Bluetooth | ✅ Working | External speaker connected and other peripherals; controller available after reboot |
 | Built-in keyboard | ✅ Working | Basic typing tested |
 | Touchpad | ✅ Working | Pointer movement, two-finger scrolling and selection |
 | Touchscreen | ✅ Working | Touch input tested |
