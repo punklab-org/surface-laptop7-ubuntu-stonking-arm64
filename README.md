@@ -12,6 +12,33 @@ This material is provided **“as is”, without warranties**, and is intended o
 
 The underlying fixes were tested on one Surface during 31 October–1 November 2026. **The assembled scripts are new: syntax and patch application were checked, but the scripts have not been tested end to end on a fresh ARM64 installation.** This is not a universal or one-click installer. Stop at each checkpoint and reboot where required.
 
+## Surface Laptop 7 — Snapdragon X Plus
+
+| Device / Feature | Status | Notes |
+|---|:---:|---|
+| Snapdragon X Plus CPU | ✅ Working | All 10 cores online |
+| Adreno X1-85 GPU | ✅ Working | OpenGL hardware acceleration and Vulkan |
+| Wi-Fi | ✅ Working | Connection and web browsing tested |
+| Built-in keyboard | ✅ Working | Basic typing tested |
+| Touchpad | ✅ Working | Pointer movement, two-finger scrolling and selection |
+| Touchscreen | ✅ Working | Touch input tested |
+| RGB webcam | ✅ Working | qcam and Google Meet; noise in low light |
+| Built-in speakers | ✅ Working | Audio works after reboot |
+| Built-in microphone | ✅ Working | Recording tested |
+| Battery and AC adapter | ✅ Working | Charging/discharging status detected |
+| Suspend and resume | ✅ Working | Suspend and wake-up tested |
+| USB wireless mouse | ✅ Working | Immediate response to movement |
+| Bluetooth | ⚪ Not tested | Controller detected; pairing not tested |
+| IR camera / face recognition | ⚪ Not tested | Functionality not verified |
+| External docks and monitors | ⚪ Not tested | Functionality not verified |
+
+**Tested configuration:** Surface Laptop 7 13.8-inch, Snapdragon X Plus
+X1P-64-100, Ubuntu 26.10 ARM64, kernel `7.3.0-31-qcom-x1e`,
+custom modules and Device Tree.
+
+“Working” refers to the tests performed on this configuration, not a
+guarantee of compatibility with other hardware or kernel versions.
+
 ## Documentation
 
 - [Complete post-installation guide](docs/GUIDE_EN.md)
