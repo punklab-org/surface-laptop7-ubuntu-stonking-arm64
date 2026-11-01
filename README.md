@@ -132,5 +132,24 @@ Wi-Fi, Adreno graphics, touchpad, touchscreen, RGB webcam, microphone, speakers 
 Low-light webcam noise remains. No battery-life guarantee is made: short balanced/power-saver measurements were inconclusive. The USB receiver autosuspend rule was not retained because the user preferred immediate wake on mouse movement.
 
 Custom modules are tied to this kernel. DKMS and automatic custom-initramfs rebuilding are not configured. Test future kernels separately and keep a working fallback.
+## Project overview
+
+Post-installation guide and community workarounds for Ubuntu 26.10
+(Stonking) ARM64 on the Microsoft Surface Laptop 7, 13.8-inch,
+with Snapdragon X Plus.
+
+Tested with kernel 7.3.0-31-qcom-x1e. Working features include Wi-Fi,
+Bluetooth with external speaker playback, graphics acceleration,
+keyboard, touchpad with scrolling and drag gestures, touchscreen,
+speakers, internal microphone, RGB webcam including Google Meet,
+and suspend/resume. The Device Tree was also adjusted to expose
+the processor’s 10 available CPU cores correctly.
+
+The IR camera is experimental: sensor detection and RAW frame
+transfer work, but image quality and continuous capture remain
+unresolved. Face authentication is not enabled.
+
+These results apply to the tested hardware and configuration;
+support for other models or kernel versions has not been verified.
 
 
