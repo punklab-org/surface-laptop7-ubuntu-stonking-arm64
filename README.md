@@ -133,8 +133,4 @@ Low-light webcam noise remains. No battery-life guarantee is made: short balance
 
 Custom modules are tied to this kernel. DKMS and automatic custom-initramfs rebuilding are not configured. Test future kernels separately and keep a working fallback.
 
-## Uploading to GitHub
 
-Extract this ZIP and upload the **contents** of the directory containing this README. Do not upload the ZIP as the project and do not add an extra nested project directory. See [UPLOAD_TO_GITHUB.md](UPLOAD_TO_GITHUB.md) for commands.
-
-Review third-party licence terms before public redistribution. Do not add firmware, private logs, keys or machine backups to the repository. Retain the supplied `.gitignore`.
