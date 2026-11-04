@@ -18,6 +18,7 @@
 #include <linux/err.h>
 #include <linux/io.h>
 #include <linux/pm_runtime.h>
+#include <linux/pm.h>
 #include <linux/string.h>
 #include <linux/kernel.h>
 #include <linux/hid.h>
@@ -196,6 +197,9 @@ static int spi_hid_sync_request_ms(struct spi_hid *shid,
 	unsigned long timeout;
 	int ret;
 
+	if (READ_ONCE(shid->suspended))
+		return -EHOSTDOWN;
+
 	reinit_completion(&shid->output_done);
 
 	ret = spi_hid_send_output(shid, report_type, content_id,
@@ -233,8 +237,11 @@ static int spi_hid_power_down(struct spi_hid *shid)
 	if (!shid->powered)
 		return 0;
 
-	if (shid->pinctrl_sleep)
-		pinctrl_select_state(shid->pinctrl, shid->pinctrl_sleep);
+	if (shid->pinctrl_sleep) {
+		ret = pinctrl_select_state(shid->pinctrl, shid->pinctrl_sleep);
+		if (ret)
+			return ret;
+	}
 
 	if (shid->supply) {
 		ret = regulator_disable(shid->supply);
@@ -294,7 +301,8 @@ static int spi_hid_error_handler(struct spi_hid *shid)
 	struct device *dev = &shid->spi->dev;
 	int ret;
 
-	if (shid->power_state == SPI_HID_POWER_MODE_OFF)
+	if (READ_ONCE(shid->suspended) ||
+	    shid->power_state == SPI_HID_POWER_MODE_OFF)
 		return 0;
 
 	dev_err(dev, "Error handler (attempt %d)\n", shid->attempts);
@@ -434,7 +442,7 @@ static irqreturn_t spi_hid_irq_thread(int irq, void *_shid)
 	struct spi_transfer xfer = {};
 	int ret;
 
-	if (!shid->powered)
+	if (READ_ONCE(shid->suspended) || !shid->powered)
 		return IRQ_HANDLED;
 
 	xfer.tx_buf = shid->irq_hdr_tx;
@@ -451,7 +459,8 @@ static irqreturn_t spi_hid_irq_thread(int irq, void *_shid)
 			dev_err(dev, "Header read failed: %d\n", ret);
 		if (shid->bus_error_count == 100) {
 			dev_err(dev, "Too many read errors, disabling IRQ\n");
-			disable_irq_nosync(shid->spi->irq);
+			if (cmpxchg(&shid->irq_enabled, true, false))
+				disable_irq_nosync(shid->spi->irq);
 		}
 		return IRQ_HANDLED;
 	}
@@ -469,7 +478,8 @@ static irqreturn_t spi_hid_irq_thread(int irq, void *_shid)
 				SPI_HID_INPUT_HEADER_LEN, shid->irq_hdr_rx);
 		if (shid->bus_error_count == 100) {
 			dev_err(dev, "Too many errors, disabling IRQ\n");
-			disable_irq_nosync(shid->spi->irq);
+			if (cmpxchg(&shid->irq_enabled, true, false))
+				disable_irq_nosync(shid->spi->irq);
 		}
 		return IRQ_HANDLED;
 	}
@@ -511,6 +521,9 @@ static void spi_hid_reset_work(struct work_struct *work)
 	struct device *dev = &shid->spi->dev;
 	int ret, attempt;
 
+	if (READ_ONCE(shid->suspended))
+		return;
+
 	if (shid->ready)
 		shid->dir_count++;
 
@@ -525,6 +538,11 @@ static void spi_hid_reset_work(struct work_struct *work)
 
 	for (attempt = 0; attempt < SPI_HID_MAX_RESET_ATTEMPTS; attempt++) {
 		int dd_try, rd_try, rd_len;
+
+		if (READ_ONCE(shid->suspended)) {
+			mutex_unlock(&shid->lock);
+			return;
+		}
 
 		if (attempt > 0) {
 			pinctrl_select_state(shid->pinctrl, shid->pinctrl_reset);
@@ -609,6 +627,9 @@ static int spi_hid_create_device(struct spi_hid *shid)
 	struct device *dev = &shid->spi->dev;
 	int ret;
 
+	if (READ_ONCE(shid->suspended))
+		return -EHOSTDOWN;
+
 	hid = hid_allocate_device();
 	if (IS_ERR(hid)) {
 		dev_err(dev, "Failed to allocate hid device: %ld\n",
@@ -670,7 +691,8 @@ static void spi_hid_refresh_device_work(struct work_struct *work)
 	struct spi_hid *shid =
 		container_of(work, struct spi_hid, refresh_device_work);
 
-	shid->ready = true;
+	if (!READ_ONCE(shid->suspended))
+		shid->ready = true;
 }
 
 static int spi_hid_ll_start(struct hid_device *hid)
@@ -745,6 +767,10 @@ static int spi_hid_ll_raw_request(struct hid_device *hid,
 
 	if (reqtype == HID_REQ_SET_REPORT && rtype == HID_FEATURE_REPORT) {
 		mutex_lock(&shid->lock);
+		if (READ_ONCE(shid->suspended)) {
+			mutex_unlock(&shid->lock);
+			return -EHOSTDOWN;
+		}
 		ret = spi_hid_sync_request(shid, SPI_HID_OUT_SET_FEATURE,
 					   buf[0], buf + 1, len - 1);
 		mutex_unlock(&shid->lock);
@@ -762,6 +788,10 @@ static int spi_hid_ll_raw_request(struct hid_device *hid,
 
 	if (reqtype == HID_REQ_GET_REPORT && rtype == HID_FEATURE_REPORT) {
 		mutex_lock(&shid->lock);
+		if (READ_ONCE(shid->suspended)) {
+			mutex_unlock(&shid->lock);
+			return -EHOSTDOWN;
+		}
 		ret = spi_hid_sync_request(shid, SPI_HID_OUT_GET_FEATURE,
 					   reportnum, NULL, 0);
 		mutex_unlock(&shid->lock);
@@ -800,6 +830,10 @@ static int spi_hid_ll_raw_request(struct hid_device *hid,
 
 	if (reqtype == HID_REQ_SET_REPORT) {
 		mutex_lock(&shid->lock);
+		if (READ_ONCE(shid->suspended)) {
+			mutex_unlock(&shid->lock);
+			return -EHOSTDOWN;
+		}
 		ret = spi_hid_send_output(shid, SPI_HID_OUT_OUTPUT_REPORT,
 					  buf[0], buf + 1, len - 1);
 		mutex_unlock(&shid->lock);
@@ -820,7 +854,7 @@ static int spi_hid_ll_output_report(struct hid_device *hid,
 	int ret;
 
 	mutex_lock(&shid->lock);
-	if (!shid->ready) {
+	if (READ_ONCE(shid->suspended) || !shid->ready) {
 		dev_err(dev, "output_report called in unready state\n");
 		ret = -ENODEV;
 		goto out;
@@ -1031,16 +1065,124 @@ err_free:
 	return ret;
 }
 
+/* Stop every producer before destroying HID children or freeing transfer buffers. */
+static void spi_hid_quiesce(struct spi_hid *shid)
+{
+	WRITE_ONCE(shid->suspended, true);
+
+	/* Drain a raw request already holding the request mutex. */
+	mutex_lock(&shid->lock);
+	mutex_unlock(&shid->lock);
+
+	if (cmpxchg(&shid->irq_enabled, true, false))
+		disable_irq(shid->spi->irq);
+	else
+		synchronize_irq(shid->spi->irq);
+
+	cancel_work_sync(&shid->reset_work);
+	cancel_work_sync(&shid->create_device_work);
+	cancel_work_sync(&shid->refresh_device_work);
+	spi_hid_stop_hid(shid);
+	shid->ready = false;
+	shid->power_state = SPI_HID_POWER_MODE_OFF;
+}
+
+static int spi_hid_resume(struct device *dev)
+{
+	struct spi_hid *shid = dev_get_drvdata(dev);
+	int ret;
+
+	/* The parent controller resumes before its SPI child. */
+	ret = pm_runtime_resume_and_get(dev->parent);
+	if (ret < 0)
+		return ret;
+
+	ret = pinctrl_select_state(shid->pinctrl, shid->pinctrl_reset);
+	if (ret)
+		goto out;
+	msleep(SPI_HID_RESET_ASSERT_MS);
+
+	ret = spi_hid_power_up(shid);
+	if (ret)
+		goto out;
+	ret = pinctrl_select_state(shid->pinctrl, shid->pinctrl_active);
+	if (ret) {
+		spi_hid_power_down(shid);
+		goto out;
+	}
+	msleep(2000);
+
+	shid->attempts = 0;
+	shid->bus_error_count = 0;
+	shid->bus_last_error = 0;
+	shid->resp_type = 0;
+	shid->resp_len = 0;
+	shid->rd_len = 0;
+	shid->desc.max_input_length = SPI_HID_MAX_INPUT_LEN;
+	shid->power_state = SPI_HID_POWER_MODE_ACTIVE;
+	complete_all(&shid->output_done);
+
+	/* Do not register a new HID child while device resume is in progress. */
+	shid->resume_pending = true;
+	dev_info(dev, "Surface PM: hardware restarted; HID re-probe pending\n");
+out:
+	pm_runtime_put(dev->parent);
+	return ret;
+}
+
+static int spi_hid_suspend(struct device *dev)
+{
+	struct spi_hid *shid = dev_get_drvdata(dev);
+	int ret, recovery;
+
+	shid->resume_pending = false;
+	spi_hid_quiesce(shid);
+	ret = spi_hid_power_down(shid);
+	if (ret) {
+		/* A failing suspend callback is not followed by its own resume. */
+		recovery = spi_hid_resume(dev);
+		if (recovery)
+			dev_err(dev, "Surface PM: suspend rollback failed: %d\n",
+				recovery);
+		return ret;
+	}
+	dev_info(dev, "Surface PM: touchpad quiesced for suspend\n");
+	return 0;
+}
+
+static void spi_hid_pm_complete(struct device *dev)
+{
+	struct spi_hid *shid = dev_get_drvdata(dev);
+
+	if (!shid->resume_pending)
+		return;
+	shid->resume_pending = false;
+	WRITE_ONCE(shid->suspended, false);
+	if (!cmpxchg(&shid->irq_enabled, false, true))
+		enable_irq(shid->spi->irq);
+
+	/* Recreate HID even when the report descriptor is unchanged:
+	 * iptsd must reopen hidraw and reselect the device's heatmap mode.
+	 * The normal descriptor request path supplies the new HID identity.
+	 */
+	schedule_work(&shid->reset_work);
+}
+
+static const struct dev_pm_ops spi_hid_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(spi_hid_suspend, spi_hid_resume)
+	.complete = spi_hid_pm_complete,
+};
+
 static void spi_hid_remove(struct spi_device *spi)
 {
 	struct spi_hid *shid = spi_get_drvdata(spi);
 	struct device *dev = &spi->dev;
 
+	shid->resume_pending = false;
+	spi_hid_quiesce(shid);
 	spi_hid_power_down(shid);
 	free_irq(spi->irq, shid);
-	shid->irq_enabled = false;
 	sysfs_remove_files(&dev->kobj, spi_hid_attributes);
-	spi_hid_stop_hid(shid);
 
 	kfree(shid->resp_buf);
 	kfree(shid->rd_buf);
@@ -1065,6 +1207,7 @@ MODULE_DEVICE_TABLE(spi, spi_hid_id_table);
 static struct spi_driver spi_hid_driver = {
 	.driver = {
 		.name	= "spi_hid",
+		.pm	= &spi_hid_pm_ops,
 		.owner	= THIS_MODULE,
 		.of_match_table = of_match_ptr(spi_hid_of_match),
 	},
@@ -1077,3 +1220,5 @@ module_spi_driver(spi_hid_driver);
 
 MODULE_DESCRIPTION("HID over SPI (HIDSPI v3) QSPI transport driver");
 MODULE_LICENSE("GPL");
+
+MODULE_VERSION("surface-pm-test1");

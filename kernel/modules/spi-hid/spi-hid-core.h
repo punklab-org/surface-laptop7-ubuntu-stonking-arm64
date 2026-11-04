@@ -117,6 +117,8 @@ struct spi_hid {
 
 	bool ready;
 	bool irq_enabled;
+	bool suspended;
+	bool resume_pending;
 
 	struct regulator *supply;
 	struct pinctrl *pinctrl;
